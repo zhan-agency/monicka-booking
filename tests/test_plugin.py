@@ -48,6 +48,23 @@ class BookingPageTests(TestCase):
         self.assertContains(response, 'lang="fa" dir="rtl"')
         self.assertIn("دکتر نمونه", response.context["catalog"]["therapists"][0]["full_name"])
         self.assertNotContains(response, "MONICKA_API_KEY")
+        self.assertNotContains(response, "city-filter")
+        self.assertNotContains(response, "branch-filter")
+
+    def test_multiple_branches_render_a_branch_filter_and_not_a_city_filter(self):
+        config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
+        catalog = {"branches": [{"id": 1, "name": "شعبه مرکزی"}, {"id": 2, "name": "شعبه غرب"}],
+            "therapists": [{"id": 1, "full_name": "دکتر نمونه", "specialties": [], "branches": [
+                {"clinic_id": 1, "clinic_name": "شعبه مرکزی", "allowed_durations": [60]},
+                {"clinic_id": 2, "clinic_name": "شعبه غرب", "allowed_durations": [60]},
+            ]}]}
+        api = type("API", (), {"catalog": lambda self: catalog})()
+        with patch("monicka_booking.views._client", return_value=(config, api)):
+            response = self.client.get(reverse("monicka_booking:booking"))
+        self.assertContains(response, 'id="branch-filter"')
+        self.assertContains(response, "شعبه مرکزی")
+        self.assertContains(response, "شعبه غرب")
+        self.assertNotContains(response, "city-filter")
 
     def test_catalog_failure_shows_friendly_unavailable_state(self):
         config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
