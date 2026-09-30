@@ -1,0 +1,14 @@
+{% load static %}<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}{{ config.title|default:"رزرو نوبت" }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'monicka_booking/booking.css' %}">
+</head>
+<body class="theme-{{ config.theme|default:'ivory' }}" style="--font-scale: {{ config.font_scale|default:100 }}%">
+  <a class="skip-link" href="#main">رفتن به محتوای اصلی</a>
+  <main id="main" class="page-shell">{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

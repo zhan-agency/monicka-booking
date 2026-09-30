@@ -1,0 +1,42 @@
+{% extends "monicka_booking/base.html" %}{% load static %}
+{% block content %}
+<header class="page-heading"><p class="eyebrow">نوبت‌دهی آنلاین</p><h1>{{ config.title }}</h1><p>{{ config.introduction }}</p></header>
+{% if unavailable %}<div class="notice error" role="alert">در حال حاضر دریافت فهرست درمانگران ممکن نیست. لطفاً کمی بعد دوباره تلاش کنید.</div>{% endif %}
+<div id="live-message" class="sr-only" role="status" aria-live="polite"></div>
+<nav class="steps" aria-label="مراحل رزرو"><ol><li class="current" data-step-label="1">درمانگر و شعبه</li><li data-step-label="2">روز و ساعت</li><li data-step-label="3">اطلاعات رزرو</li></ol></nav>
+<section class="panel" id="step-therapist" aria-labelledby="therapist-title">
+  <h2 id="therapist-title">درمانگر خود را انتخاب کنید</h2>
+  <div class="filters">
+    <label>جست‌وجوی نام یا تخصص<input id="therapist-search" type="search" autocomplete="off"></label>
+    <label>شهر<select id="city-filter"><option value="">همه شهرها</option></select></label>
+    <label>مدت جلسه<select id="duration-filter"><option value="">همه مدت‌ها</option></select></label>
+  </div>
+  <div id="therapist-list" class="therapist-grid" aria-live="polite">
+    {% for therapist in catalog.therapists %}<article class="therapist-card"><h3>{{ therapist.full_name }}</h3>{% if therapist.short_bio %}<p>{{ therapist.short_bio }}</p>{% endif %}<div>{% for specialty in therapist.specialties %}<span class="tag">{{ specialty }}</span>{% endfor %}</div><button type="button" class="button primary" data-therapist-id="{{ therapist.id }}">انتخاب درمانگر</button></article>{% empty %}<p>درمانگری برای نمایش وجود ندارد.</p>{% endfor %}
+  </div>
+</section>
+<section class="panel" id="step-calendar" aria-labelledby="calendar-title" hidden>
+  <div class="section-top"><div><h2 id="calendar-title">انتخاب روز و ساعت</h2><p id="selected-therapist"></p></div><button type="button" class="button secondary" data-back="therapist">تغییر درمانگر</button></div>
+  <div class="branch-row"><label for="branch-select">شعبه</label><select id="branch-select"></select></div>
+  <div class="calendar-head"><button type="button" id="previous-month" class="button secondary" aria-label="ماه قبل">ماه قبل</button><h3 id="month-label" aria-live="polite"></h3><button type="button" id="next-month" class="button secondary" aria-label="ماه بعد">ماه بعد</button></div>
+  <div class="calendar-grid" role="grid" aria-label="تقویم شمسی"><div class="weekday">شنبه</div><div class="weekday">یکشنبه</div><div class="weekday">دوشنبه</div><div class="weekday">سه‌شنبه</div><div class="weekday">چهارشنبه</div><div class="weekday">پنجشنبه</div><div class="weekday">جمعه</div></div>
+  <p id="calendar-help" class="muted">روزهای دارای نوبت با دکمه قابل انتخاب هستند.</p>
+  <div id="slot-area" hidden><h3>ساعت‌های آزاد</h3><div id="slot-list" class="slot-list"></div></div>
+</section>
+<section class="panel" id="step-details" aria-labelledby="details-title" hidden>
+  <div class="section-top"><div><h2 id="details-title">اطلاعات رزرو</h2><p id="booking-summary"></p></div><button type="button" class="button secondary" data-back="calendar">تغییر ساعت</button></div>
+  <form method="post" action="{{ submit_url }}" id="booking-form">{% csrf_token %}
+    <input type="hidden" name="clinic" id="form-clinic"><input type="hidden" name="therapist" id="form-therapist"><input type="hidden" name="starts_at" id="form-starts-at"><input type="hidden" name="duration_minutes" id="form-duration"><input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+    <label>نام و نام خانوادگی رزروکننده<input name="patient_name" required maxlength="200" autocomplete="name"></label>
+    <label>شماره تلفن همراه<input name="patient_phone" required inputmode="tel" autocomplete="tel" pattern="[+0-9۰-۹٠-٩\- ]{10,16}" aria-describedby="phone-hint"><span id="phone-hint" class="hint">شماره تلفن همراه ایران را وارد کنید.</span></label>
+    <label>نوع جلسه<select name="session_type"><option value="in_person">حضوری</option><option value="online">آنلاین</option></select><span class="hint">برای هر دو نوع جلسه، اتاق مناسب به‌صورت خودکار رزرو می‌شود.</span></label>
+    <fieldset><legend>افراد همراه در همین جلسه <span class="muted">(در صورت نیاز)</span></legend><div id="participants"></div><button type="button" id="add-participant" class="button secondary">افزودن همراه</button></fieldset>
+    <p class="notice">پرداخت امن در صفحه درگاه بانکی انجام می‌شود. برای رزرو گروهی، نام و شماره هر فرد را وارد کنید.</p>
+    <button class="button primary" type="submit">ادامه به پرداخت</button>
+  </form>
+</section>
+{% if config.show_phone_support and config.support_phone %}<footer class="support">نیاز به راهنمایی دارید؟ <a href="tel:{{ config.support_phone|urlencode }}">{{ config.support_phone }}</a></footer>{% endif %}
+{{ catalog|json_script:"monicka-catalog" }}
+{{ availability_url|json_script:"availability-url" }}{{ slots_url|json_script:"slots-url" }}{{ config.currency_label|json_script:"currency-label" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'monicka_booking/booking.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,3 @@
+recursive-include src/monicka_booking/templates *.html
+recursive-include src/monicka_booking/static *.css *.js
+recursive-include src/monicka_booking/migrations *.py
