@@ -44,4 +44,14 @@ pip install -e '.[test]'
 python -m django test --settings tests.settings
 ```
 
-The development settings module is included in the source checkout. A production project supplies its own settings and authentication/admin configuration.
+You can also run the source checkout as a standalone local Django site without installing `monicka-booking`. Use an existing Python environment with Django and Requests available:
+
+```sh
+export PYTHONPATH="$PWD/src"
+DJANGO_PYTHON="/path/to/python-with-django"
+"$DJANGO_PYTHON" -m django migrate --settings tests.dev_settings
+"$DJANGO_PYTHON" -m django createsuperuser --settings tests.dev_settings
+"$DJANGO_PYTHON" -m django runserver 127.0.0.1:8000 --settings tests.dev_settings
+```
+
+Open `http://localhost:8000/booking/` for the booking page or `/admin/` to configure its title and theme. This local setup uses a persistent SQLite database at `dev.sqlite3`; the test settings continue to use an in-memory database. Without `MONICKA_API_KEY` and a reachable API the page shows its friendly unavailable state. To try real slots and payment handoff, point it at a staging API and test gateway. A production project supplies its own Django settings, database, and admin configuration.
