@@ -9,6 +9,12 @@
 <body class="theme-{{ config.theme|default:'ivory' }}" style="--font-scale: {{ config.font_scale|default:100 }}%">
   <a class="skip-link" href="#main">رفتن به محتوای اصلی</a>
   <main id="main" class="page-shell">{% block content %}{% endblock %}</main>
+  <footer class="monicka-powered">
+    <a href="https://www.monicka.ir/" target="_blank" rel="noopener noreferrer">
+      <img src="{% static 'monicka_booking/monicka-logo.png' %}" alt="نشان مونیکا">
+      <span><small>توانمند از</small><strong>مونیکا</strong></span>
+    </a>
+  </footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -115,6 +115,9 @@ class BookingPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(api.code, "AB12CD34EF")
         self.assertContains(response, "AB12CD34EF")
+        self.assertContains(response, "https://www.monicka.ir/")
+        self.assertContains(response, "monicka_booking/monicka-logo.png")
+        self.assertContains(response, "توانمند از")
 
 
 class AssessmentPluginFlowTests(TestCase):
