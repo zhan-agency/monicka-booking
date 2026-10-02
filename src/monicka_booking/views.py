@@ -98,3 +98,60 @@ def complete(request):
     except MonickaAPIError:
         return render(request, "monicka_booking/error.html", {"confirmation_code": code}, status=503)
     return render(request, "monicka_booking/complete.html", {"booking": booking})
+
+
+@require_GET
+def assessments_access(request):
+    return render(request, "monicka_booking/assessment_access.html")
+
+
+@require_POST
+def assessments_list(request):
+    code = request.POST.get("confirmation_code", "").strip().upper()
+    phone = request.POST.get("phone", "").strip()
+    if not code or not phone:
+        return render(request, "monicka_booking/error.html", status=400)
+    _, api = _client()
+    try:
+        data = api.assessment_assignments(code=code, phone=phone)
+    except MonickaAPIError as exc:
+        return render(request, "monicka_booking/assessment_access.html", {
+            "error": "کد پیگیری یا شماره همراه درست نیست، یا آزمونی برای شما فعال نشده است."},
+            status=403 if exc.status_code in (401, 403, 404) else 503)
+    return render(request, "monicka_booking/assessments.html", {
+        "assessments": data.get("assessments", []),
+        "unavailable_assessments": data.get("unavailable_assessments", []),
+        "confirmation_code": code, "phone": phone})
+
+
+@require_POST
+def assessment_form(request, assessment_type):
+    code = request.POST.get("confirmation_code", "").strip().upper()
+    phone = request.POST.get("phone", "").strip()
+    if not code or not phone:
+        return render(request, "monicka_booking/error.html", status=400)
+    _, api = _client()
+    try:
+        form = api.assessment_questionnaire(code=code, phone=phone, assessment_type=assessment_type)
+    except MonickaAPIError as exc:
+        return render(request, "monicka_booking/error.html", status=403 if exc.status_code in (401, 403, 404) else 503)
+    return render(request, "monicka_booking/assessment_form.html", {
+        "form": form, "confirmation_code": code, "phone": phone})
+
+
+@require_POST
+def assessment_submit(request, assessment_type):
+    code = request.POST.get("confirmation_code", "").strip().upper()
+    phone = request.POST.get("phone", "").strip()
+    try:
+        count = int(request.POST.get("question_count", "0"))
+        answers = [int(request.POST[f"q{number}"]) for number in range(1, count + 1)]
+    except (ValueError, KeyError):
+        return render(request, "monicka_booking/error.html", status=400)
+    _, api = _client()
+    try:
+        result = api.submit_assessment(code=code, phone=phone,
+            assessment_type=assessment_type, answers=answers)
+    except MonickaAPIError as exc:
+        return render(request, "monicka_booking/error.html", status=400 if exc.status_code == 400 else 503)
+    return render(request, "monicka_booking/assessment_complete.html", {"result": result})

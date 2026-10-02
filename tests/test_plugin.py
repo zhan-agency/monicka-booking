@@ -115,3 +115,98 @@ class BookingPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(api.code, "AB12CD34EF")
         self.assertContains(response, "AB12CD34EF")
+
+
+class AssessmentPluginFlowTests(TestCase):
+    def setUp(self):
+        self.config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
+
+    def test_assessment_client_sends_phone_only_in_post_body(self):
+        client = MonickaAPIClient(self.config, api_key="secret", session=type("Session", (), {
+            "request": lambda self, method, url, **kwargs: type("Response", (), {
+                "raise_for_status": lambda self: None,
+                "json": lambda self: {"assessments": []},
+            })(),
+        })())
+        with patch.object(client.session, "request", wraps=client.session.request) as request:
+            client.assessment_assignments(code="AB12CD34EF", phone="09123456789")
+        self.assertEqual(request.call_args.args[0], "POST")
+        self.assertNotIn("phone", request.call_args.args[1])
+        self.assertNotIn("params", request.call_args.kwargs)
+        self.assertEqual(request.call_args.kwargs["json"], {
+            "code": "AB12CD34EF", "phone": "09123456789",
+        })
+
+    def test_assessment_access_and_assigned_list_keep_private_values_out_of_urls(self):
+        with patch("monicka_booking.views._client", return_value=(self.config, object())):
+            access = self.client.get(reverse("monicka_booking:assessments-access"))
+        self.assertEqual(access.status_code, 200)
+        self.assertContains(access, 'name="confirmation_code"')
+        self.assertContains(access, 'name="phone"')
+
+        class API:
+            def assessment_assignments(self, *, code, phone):
+                self.received = (code, phone)
+                return {"assessments": [{"type": "mbti", "title": "آزمون MBTI", "question_count": 60}]}
+        api = API()
+        with patch("monicka_booking.views._client", return_value=(self.config, api)):
+            response = self.client.post(reverse("monicka_booking:assessments-list"), {
+                "confirmation_code": "ab12cd34ef", "phone": "09123456789"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api.received, ("AB12CD34EF", "09123456789"))
+        self.assertContains(response, "آزمون MBTI")
+        self.assertContains(response, 'name="phone" value="09123456789"')
+        self.assertNotIn("09123456789", response.request["PATH_INFO"])
+
+    def test_unverified_assigned_assessments_are_explicitly_shown_for_clinic_followup(self):
+        class API:
+            def assessment_assignments(self, *, code, phone):
+                return {"assessments": [], "unavailable_assessments": [
+                    {"type": "bai", "title": "شاخص اضطراب بک"},
+                ]}
+        with patch("monicka_booking.views._client", return_value=(self.config, API())):
+            response = self.client.post(reverse("monicka_booking:assessments-list"), {
+                "confirmation_code": "AB12CD34EF", "phone": "09123456789"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "نیازمند پیگیری کلینیک")
+        self.assertContains(response, "شاخص اضطراب بک")
+        self.assertContains(response, "امکان تکمیل آنلاین ندارند")
+
+    def test_questionnaire_is_server_fetched_and_submission_posts_complete_answers(self):
+        class API:
+            submitted = None
+            def assessment_questionnaire(self, *, code, phone, assessment_type):
+                self.loaded = (code, phone, assessment_type)
+                return {"type": assessment_type, "title": "آزمون نمونه", "question_count": 2,
+                    "questions": [
+                        {"number": 1, "text": "پرسش یک", "choices": [{"value": 0, "label": "خیر"}, {"value": 1, "label": "بله"}]},
+                        {"number": 2, "text": "پرسش دو", "choices": [{"value": 0, "label": "خیر"}, {"value": 1, "label": "بله"}]},
+                    ]}
+            def submit_assessment(self, **payload):
+                self.submitted = payload
+                return {"status": "completed"}
+        api = API()
+        with patch("monicka_booking.views._client", return_value=(self.config, api)):
+            form = self.client.post(reverse("monicka_booking:assessment-form", args=["mbti"]), {
+                "confirmation_code": "AB12CD34EF", "phone": "09123456789"})
+            self.assertEqual(form.status_code, 200)
+            self.assertContains(form, 'id="assessment-prev"')
+            self.assertContains(form, 'aria-live="polite"')
+            self.assertContains(form, "پرسش دو")
+            done = self.client.post(reverse("monicka_booking:assessment-submit", args=["mbti"]), {
+                "confirmation_code": "AB12CD34EF", "phone": "09123456789",
+                "question_count": "2", "q1": "1", "q2": "0"})
+        self.assertEqual(done.status_code, 200)
+        self.assertEqual(api.loaded, ("AB12CD34EF", "09123456789", "mbti"))
+        self.assertEqual(api.submitted, {"code": "AB12CD34EF", "phone": "09123456789",
+            "assessment_type": "mbti", "answers": [1, 0]})
+        self.assertContains(done, "با موفقیت ثبت شد")
+
+    def test_missing_assessment_answers_never_submit(self):
+        class API:
+            def submit_assessment(self, **payload):
+                raise AssertionError("Incomplete questionnaire must be rejected locally")
+        with patch("monicka_booking.views._client", return_value=(self.config, API())):
+            response = self.client.post(reverse("monicka_booking:assessment-submit", args=["mbti"]), {
+                "confirmation_code": "AB12CD34EF", "phone": "09123456789", "question_count": "2", "q1": "0"})
+        self.assertEqual(response.status_code, 400)

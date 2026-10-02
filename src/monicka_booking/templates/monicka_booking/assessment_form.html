@@ -1,0 +1,34 @@
+{% extends "monicka_booking/base.html" %}
+{% load static %}
+{% block content %}
+<section class="panel assessment-panel" aria-labelledby="assessment-title">
+  <p class="eyebrow">پاسخ‌گویی به آزمون</p>
+  <h1 id="assessment-title">{{ form.title }}</h1>
+  <p>به همه پرسش‌ها پاسخ دهید. پاسخ‌ها پس از ثبت برای درمانگر شما ارسال می‌شوند.</p>
+  <form method="post" action="{% url 'monicka_booking:assessment-submit' form.type %}" id="assessment-form">
+    {% csrf_token %}
+    <input type="hidden" name="confirmation_code" value="{{ confirmation_code }}">
+    <input type="hidden" name="phone" value="{{ phone }}">
+    <input type="hidden" name="question_count" value="{{ form.question_count }}">
+    <div class="assessment-progress" aria-label="پیشرفت آزمون"><span id="assessment-progress-label">پرسش ۱ از {{ form.question_count }}</span><progress id="assessment-progress" max="{{ form.question_count }}" value="1">۱ از {{ form.question_count }}</progress></div>
+    <div id="assessment-live" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+    {% for question in form.questions %}
+    <fieldset class="assessment-question" data-question="{{ forloop.counter }}" {% if not forloop.first %}hidden{% endif %}>
+      <legend><span class="question-number">پرسش {{ forloop.counter }}</span>{{ question.text }}</legend>
+      <div class="assessment-choices">
+        {% for choice in question.choices %}
+        <label class="assessment-choice"><input type="radio" name="q{{ question.number }}" value="{{ choice.value }}" required><span>{{ choice.label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+    <div class="assessment-nav">
+      <button class="button secondary" type="button" id="assessment-prev" disabled>پرسش پیشین</button>
+      <button class="button primary" type="button" id="assessment-next">پرسش بعدی</button>
+      <button class="button primary" type="submit" id="assessment-submit" hidden>ثبت پاسخ‌ها</button>
+    </div>
+    <noscript><p>برای پاسخ‌گویی بدون جاوااسکریپت، همه پرسش‌ها در همین صفحه نمایش داده می‌شوند.</p></noscript>
+  </form>
+</section>
+<script src="{% static 'monicka_booking/assessment.js' %}" defer></script>
+{% endblock %}

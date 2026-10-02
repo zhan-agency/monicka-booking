@@ -53,3 +53,14 @@ class MonickaAPIClient:
 
     def confirmation(self, code):
         return self._request("GET", f"/api/plugin/confirmation/{code}/")
+
+    def assessment_assignments(self, *, code, phone):
+        return self._request("POST", "/api/plugin/assessments/", json={"code": code, "phone": phone})
+
+    def assessment_questionnaire(self, *, code, phone, assessment_type):
+        return self._request("POST", f"/api/plugin/assessments/{assessment_type}/form/",
+            json={"code": code, "phone": phone})
+
+    def submit_assessment(self, *, code, phone, assessment_type, answers):
+        return self._request("POST", f"/api/plugin/assessments/{assessment_type}/",
+            json={"action": "submit", "code": code, "phone": phone, "answers": answers})

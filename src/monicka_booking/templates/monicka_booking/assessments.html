@@ -1,0 +1,30 @@
+{% extends "monicka_booking/base.html" %}
+{% block content %}
+<section class="panel assessment-panel" aria-labelledby="assessment-list-title">
+  <p class="eyebrow">آزمون‌های شما</p>
+  <h1 id="assessment-list-title">آزمون‌های اختصاص‌یافته</h1>
+  {% if assessments %}
+    <ul class="assessment-list">
+      {% for assessment in assessments %}
+      <li>
+        <div><h2>{{ assessment.title }}</h2><p>{{ assessment.question_count }} پرسش</p></div>
+        <form method="post" action="{% url 'monicka_booking:assessment-form' assessment.type %}">
+          {% csrf_token %}<input type="hidden" name="confirmation_code" value="{{ confirmation_code }}"><input type="hidden" name="phone" value="{{ phone }}">
+          <button class="button primary" type="submit">شروع آزمون</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if unavailable_assessments %}
+    <aside class="assessment-unavailable" role="status" aria-live="polite">
+      <h2>نیازمند پیگیری کلینیک</h2>
+      <p>برخی آزمون‌های اختصاص‌یافته هنوز امکان تکمیل آنلاین ندارند. برای پیگیری با کلینیک تماس بگیرید.</p>
+      <ul>{% for assessment in unavailable_assessments %}<li>{{ assessment.title }}</li>{% endfor %}</ul>
+    </aside>
+  {% endif %}
+  {% if not assessments and not unavailable_assessments %}
+    <p role="status">در حال حاضر آزمون تکمیل‌نشده‌ای برای شما فعال نیست.</p>
+  {% endif %}
+</section>
+{% endblock %}

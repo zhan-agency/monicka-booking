@@ -1,0 +1,17 @@
+{% extends "monicka_booking/base.html" %}
+{% block content %}
+<section class="panel assessment-panel" aria-labelledby="assessment-access-title">
+  <p class="eyebrow">آزمون‌های شما</p>
+  <h1 id="assessment-access-title">ورود به آزمون</h1>
+  <p>برای دیدن آزمون‌های اختصاص‌یافته، کد پیگیری نوبت و شماره همراه ثبت‌شده را وارد کنید.</p>
+  {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="{% url 'monicka_booking:assessments-list' %}" class="assessment-access-form">
+    {% csrf_token %}
+    <label for="confirmation-code">کد پیگیری نوبت</label>
+    <input id="confirmation-code" name="confirmation_code" autocomplete="off" dir="ltr" required maxlength="12">
+    <label for="assessment-phone">شماره همراه</label>
+    <input id="assessment-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" required>
+    <button class="button primary" type="submit">نمایش آزمون‌ها</button>
+  </form>
+</section>
+{% endblock %}

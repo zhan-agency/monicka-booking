@@ -1,0 +1,8 @@
+{% extends "monicka_booking/base.html" %}
+{% block content %}
+<section class="panel result" aria-labelledby="assessment-complete-title" role="status">
+  <p class="eyebrow">ثبت پاسخ‌ها</p>
+  <h1 id="assessment-complete-title">{% if result.status == 'already_completed' %}این آزمون پیش‌تر ثبت شده است{% else %}پاسخ‌های شما با موفقیت ثبت شد{% endif %}</h1>
+  <p>نتیجه برای درمانگر شما ثبت شد. برای بررسی یا تفسیر نتیجه با کلینیک تماس بگیرید.</p>
+</section>
+{% endblock %}
