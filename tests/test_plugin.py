@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.core import signing
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -39,6 +40,16 @@ class BookingConfigTests(TestCase):
 
 
 class BookingPageTests(TestCase):
+    def _catalog(self):
+        return {"home_clinic_id": 1,
+            "branches": [{"id": 1, "name": "شعبه مرکزی"}, {"id": 2, "name": "شعبه غرب"}],
+            "therapists": [{"id": 8, "full_name": "دکتر نمونه", "branches": [
+                {"clinic_id": 1, "clinic_name": "شعبه مرکزی", "allowed_durations": [45, 60]},
+                {"clinic_id": 2, "clinic_name": "شعبه غرب", "allowed_durations": [60]},
+            ]}, {"id": 9, "full_name": "دکتر دیگر", "branches": [
+                {"clinic_id": 2, "clinic_name": "شعبه غرب", "allowed_durations": [60]},
+            ]}]}
+
     def test_catalog_is_rendered_in_persian_rtl_and_key_is_not_exposed(self):
         config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
         catalog = {"branches": [], "therapists": [{"id": 1, "full_name": "دکتر نمونه", "branches": []}]}
@@ -74,6 +85,37 @@ class BookingPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "فهرست درمانگران")
 
+    def test_deep_link_locks_page_to_the_selected_therapist_and_branch(self):
+        config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
+        catalog = self._catalog()
+        api = type("API", (), {})()
+        api.catalog = lambda: catalog
+        with patch("monicka_booking.views._client", return_value=(config, api)):
+            response = self.client.get(reverse("monicka_booking:booking"), {"therapist": "8", "clinic": "2"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["special_mode"])
+        self.assertEqual(response.context["special_scope"], {"therapist_id": 8, "clinic_id": 2})
+        self.assertEqual([row["id"] for row in response.context["catalog"]["therapists"]], [8])
+        self.assertEqual([row["clinic_id"] for row in response.context["catalog"]["therapists"][0]["branches"]], [2])
+        self.assertContains(response, 'id="step-calendar"')
+        self.assertContains(response, 'name="booking_scope"')
+        self.assertNotContains(response, "تغییر درمانگر")
+        self.assertNotContains(response, "دکتر دیگر")
+        self.assertNotContains(response, "شعبه مرکزی")
+
+    def test_deep_link_rejects_missing_or_unrelated_therapist_branch_pairs(self):
+        config = BookingWidgetConfig.objects.create(primary_clinic_id=1)
+        catalog = self._catalog()
+        api = type("API", (), {})()
+        api.catalog = lambda: catalog
+        with patch("monicka_booking.views._client", return_value=(config, api)):
+            missing = self.client.get(reverse("monicka_booking:booking"), {"therapist": "8"})
+            unrelated = self.client.get(reverse("monicka_booking:booking"), {"therapist": "9", "clinic": "1"})
+        self.assertTrue(missing.context["invalid_scope"])
+        self.assertTrue(unrelated.context["invalid_scope"])
+        self.assertContains(unrelated, "پیوند رزرو معتبر نیست")
+        self.assertNotContains(unrelated, "دکتر نمونه")
+
     def test_completion_requires_a_confirmation_code(self):
         response = self.client.get(reverse("monicka_booking:complete"))
         self.assertEqual(response.status_code, 400)
@@ -100,6 +142,17 @@ class BookingPageTests(TestCase):
         self.assertEqual(api.payload["idempotency_key"], "00000000-0000-0000-0000-000000000001")
         self.assertEqual(api.payload["return_url"], "http://testserver/booking/complete/")
         self.assertContains(response, "https://bank.example/pay")
+
+    def test_deep_link_scope_prevents_changing_therapist_or_branch_at_submit(self):
+        token = signing.dumps({"therapist_id": 8, "clinic_id": 2}, salt="monicka-booking-scope")
+        with patch("monicka_booking.views._client") as client_factory:
+            response = self.client.post(reverse("monicka_booking:submit"), {
+                "booking_scope": token, "clinic": "1", "therapist": "8",
+                "patient_name": "مراجع", "patient_phone": "09120000000",
+                "duration_minutes": "60", "starts_at": "2026-10-04T10:00:00+03:30",
+            })
+        self.assertEqual(response.status_code, 400)
+        client_factory.assert_not_called()
 
     def test_completion_verifies_code_through_api_before_rendering_status(self):
         config = BookingWidgetConfig.objects.create(primary_clinic_id=1)

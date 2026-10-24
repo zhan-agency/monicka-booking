@@ -31,6 +31,16 @@ Issue a clinic API key in Monicka and set the key's home clinic `website_url` to
 
 The package talks to the API over HTTPS using `X-Clinic-API-Key`. Website hosting must allow outbound HTTPS requests to the configured API. The payment callback returns to the plugin completion page, where the package verifies the confirmation code server-to-server before showing appointment status.
 
+### Direct therapist booking links
+
+To link directly to one therapist at one branch, use the regular booking URL with both public IDs:
+
+```text
+/booking/?therapist=133&clinic=5
+```
+
+The plugin checks that this therapist is actually offered at that clinic before entering the calendar step. The page then contains only that therapist and branch, skips the therapist/branch directory, and continues through the normal availability, booking, and payment checks. Invalid or mismatched IDs show an error instead of opening the full directory. These IDs are selectors, not credentials; do not put a patient's name, phone number, or other personal details in a URL. The API still validates every selected time and booking.
+
 ## Booking flow and accessibility
 
 The initial therapist catalog is server-rendered. JavaScript progressively loads the Jalali calendar's available days and slots from same-origin Django views; dates and slots are always validated again by the API at booking time. The responsive UI uses semantic form labels, keyboard-operable buttons, visible focus rings, large controls, live status announcements, high-contrast light themes, adjustable type size, and reduced-motion support.

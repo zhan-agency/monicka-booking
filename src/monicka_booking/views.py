@@ -1,5 +1,7 @@
 import uuid
 
+from django.core import signing
+from django.core.signing import BadSignature
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -21,6 +23,9 @@ def _error_response():
 @require_GET
 def booking_page(request):
     config, api = _client()
+    scope_requested = "therapist" in request.GET or "clinic" in request.GET
+    scope = None
+    invalid_scope = False
     try:
         catalog = api.catalog()
     except MonickaAPIError:
@@ -28,8 +33,34 @@ def booking_page(request):
         unavailable = True
     else:
         unavailable = False
+        if scope_requested:
+            therapist_id = request.GET.get("therapist", "")
+            clinic_id = request.GET.get("clinic", "")
+            if not (therapist_id.isascii() and therapist_id.isdecimal()
+                    and clinic_id.isascii() and clinic_id.isdecimal()):
+                invalid_scope = True
+            else:
+                therapist_id, clinic_id = int(therapist_id), int(clinic_id)
+                therapist = next((item for item in catalog.get("therapists", [])
+                                  if item.get("id") == therapist_id), None)
+                branch = next((item for item in (therapist or {}).get("branches", [])
+                               if item.get("clinic_id") == clinic_id), None)
+                if therapist and branch:
+                    scope = {"therapist_id": therapist_id, "clinic_id": clinic_id}
+                    catalog = {
+                        **catalog,
+                        "branches": [branch],
+                        "therapists": [{**therapist, "branches": [branch]}],
+                    }
+                else:
+                    invalid_scope = True
+            if invalid_scope:
+                catalog = {**catalog, "branches": [], "therapists": []}
+    scope_token = signing.dumps(scope, salt="monicka-booking-scope") if scope else ""
     return render(request, "monicka_booking/booking.html", {
         "config": config, "catalog": catalog, "unavailable": unavailable,
+        "special_mode": scope is not None, "special_scope": scope,
+        "scope_token": scope_token, "invalid_scope": invalid_scope,
         "availability_url": reverse("monicka_booking:availability"),
         "slots_url": reverse("monicka_booking:slots"),
         "submit_url": reverse("monicka_booking:submit"),
@@ -60,9 +91,14 @@ def slots(request):
 
 @require_POST
 def submit_booking(request):
-    _, api = _client()
     try:
         starts_at = request.POST["starts_at"]
+        scope_token = request.POST.get("booking_scope", "")
+        if scope_token:
+            scope = signing.loads(scope_token, salt="monicka-booking-scope")
+            if (int(request.POST["clinic"]) != scope["clinic_id"]
+                    or int(request.POST["therapist"]) != scope["therapist_id"]):
+                return render(request, "monicka_booking/error.html", status=400)
         payload = {
             "clinic": int(request.POST["clinic"]), "therapist": int(request.POST["therapist"]),
             "patient_name": request.POST["patient_name"].strip(),
@@ -78,8 +114,11 @@ def submit_booking(request):
             return render(request, "monicka_booking/error.html", status=400)
         payload["participant_contacts"] = [{"patient_name": name.strip(), "patient_phone": phone.strip()}
             for name, phone in zip(names, phones) if name.strip() or phone.strip()]
+        _, api = _client()
         response = api.book(payload)
-    except (MonickaAPIError, KeyError, ValueError):
+    except BadSignature:
+        return render(request, "monicka_booking/error.html", status=400)
+    except (MonickaAPIError, KeyError, TypeError, ValueError):
         return render(request, "monicka_booking/error.html", status=503)
     gateway = response.get("gateway")
     if gateway and gateway.get("url"):

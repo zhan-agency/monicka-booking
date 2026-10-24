@@ -2,9 +2,10 @@
 {% block content %}
 <header class="page-heading"><p class="eyebrow">نوبت‌دهی آنلاین</p><h1>{{ config.title }}</h1><p>{{ config.introduction }}</p></header>
 {% if unavailable %}<div class="notice error" role="alert">در حال حاضر دریافت فهرست درمانگران ممکن نیست. لطفاً کمی بعد دوباره تلاش کنید.</div>{% endif %}
+{% if invalid_scope %}<div class="notice error" role="alert">پیوند رزرو معتبر نیست یا این درمانگر در شعبهٔ انتخاب‌شده فعالیت ندارد. لطفاً پیوند را از وب‌سایت کلینیک دوباره باز کنید.</div>{% endif %}
 <div id="live-message" class="sr-only" role="status" aria-live="polite"></div>
-<nav class="steps" aria-label="مراحل رزرو"><ol><li class="current" data-step-label="1">درمانگر و شعبه</li><li data-step-label="2">روز و ساعت</li><li data-step-label="3">اطلاعات رزرو</li></ol></nav>
-<section class="panel" id="step-therapist" aria-labelledby="therapist-title">
+{% if not invalid_scope %}<nav class="steps" aria-label="مراحل رزرو"><ol><li {% if not special_mode %}class="current"{% endif %} data-step-label="1">درمانگر و شعبه</li><li {% if special_mode %}class="current"{% endif %} data-step-label="2">روز و ساعت</li><li data-step-label="3">اطلاعات رزرو</li></ol></nav>{% endif %}
+{% if not invalid_scope %}<section class="panel" id="step-therapist" aria-labelledby="therapist-title" {% if special_mode %}hidden{% endif %}>
   <h2 id="therapist-title">درمانگر خود را انتخاب کنید</h2>
   <div class="filters">
     <label>جست‌وجوی نام یا تخصص<input id="therapist-search" type="search" autocomplete="off"></label>
@@ -15,8 +16,8 @@
     {% for therapist in catalog.therapists %}<article class="therapist-card"><h3>{{ therapist.full_name }}</h3>{% if therapist.short_bio %}<p>{{ therapist.short_bio }}</p>{% endif %}<div>{% for specialty in therapist.specialties %}<span class="tag">{{ specialty }}</span>{% endfor %}</div>{% if catalog.branches|length > 1 %}<p class="muted">شعبه‌ها</p><div>{% for branch in therapist.branches %}<span class="tag">{{ branch.clinic_name }}</span>{% endfor %}</div>{% endif %}<button type="button" class="button primary" data-therapist-id="{{ therapist.id }}">انتخاب درمانگر</button></article>{% empty %}<p>درمانگری برای نمایش وجود ندارد.</p>{% endfor %}
   </div>
 </section>
-<section class="panel" id="step-calendar" aria-labelledby="calendar-title" hidden>
-  <div class="section-top"><div><h2 id="calendar-title">انتخاب روز و ساعت</h2><p id="selected-therapist"></p></div><button type="button" class="button secondary" data-back="therapist">تغییر درمانگر</button></div>
+<section class="panel" id="step-calendar" aria-labelledby="calendar-title" {% if not special_mode %}hidden{% endif %}>
+  <div class="section-top"><div><h2 id="calendar-title">انتخاب روز و ساعت</h2><p id="selected-therapist"></p></div>{% if not special_mode %}<button type="button" class="button secondary" data-back="therapist">تغییر درمانگر</button>{% endif %}</div>
   <div class="branch-row" id="branch-row" hidden><label for="branch-select">شعبه</label><select id="branch-select"></select></div>
   <div class="calendar-head"><button type="button" id="previous-month" class="button secondary" aria-label="ماه قبل">ماه قبل</button><h3 id="month-label" aria-live="polite"></h3><button type="button" id="next-month" class="button secondary" aria-label="ماه بعد">ماه بعد</button></div>
   <div class="calendar-grid" role="grid" aria-label="تقویم شمسی"><div class="weekday">شنبه</div><div class="weekday">یکشنبه</div><div class="weekday">دوشنبه</div><div class="weekday">سه‌شنبه</div><div class="weekday">چهارشنبه</div><div class="weekday">پنجشنبه</div><div class="weekday">جمعه</div></div>
@@ -26,7 +27,7 @@
 <section class="panel" id="step-details" aria-labelledby="details-title" hidden>
   <div class="section-top"><div><h2 id="details-title">اطلاعات رزرو</h2><p id="booking-summary"></p></div><button type="button" class="button secondary" data-back="calendar">تغییر ساعت</button></div>
   <form method="post" action="{{ submit_url }}" id="booking-form">{% csrf_token %}
-    <input type="hidden" name="clinic" id="form-clinic"><input type="hidden" name="therapist" id="form-therapist"><input type="hidden" name="starts_at" id="form-starts-at"><input type="hidden" name="duration_minutes" id="form-duration"><input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+    <input type="hidden" name="clinic" id="form-clinic"><input type="hidden" name="therapist" id="form-therapist"><input type="hidden" name="starts_at" id="form-starts-at"><input type="hidden" name="duration_minutes" id="form-duration"><input type="hidden" name="idempotency_key" value="{{ idempotency_key }}"><input type="hidden" name="booking_scope" value="{{ scope_token }}">
     <label>نام و نام خانوادگی رزروکننده<input name="patient_name" required maxlength="200" autocomplete="name"></label>
     <label>شماره تلفن همراه<input name="patient_phone" required inputmode="tel" autocomplete="tel" pattern="[+0-9۰-۹٠-٩\- ]{10,16}" aria-describedby="phone-hint"><span id="phone-hint" class="hint">شماره تلفن همراه ایران را وارد کنید.</span></label>
     <label>نوع جلسه<select name="session_type"><option value="in_person">حضوری</option><option value="online">آنلاین</option></select><span class="hint">برای هر دو نوع جلسه، اتاق مناسب به‌صورت خودکار رزرو می‌شود.</span></label>
@@ -35,8 +36,10 @@
     <button class="button primary" type="submit">ادامه به پرداخت</button>
   </form>
 </section>
+{% endif %}
 {% if config.show_phone_support and config.support_phone %}<footer class="support">نیاز به راهنمایی دارید؟ <a href="tel:{{ config.support_phone|urlencode }}">{{ config.support_phone }}</a></footer>{% endif %}
 {{ catalog|json_script:"monicka-catalog" }}
+{{ special_scope|json_script:"booking-scope" }}{{ invalid_scope|json_script:"booking-scope-invalid" }}
 {{ availability_url|json_script:"availability-url" }}{{ slots_url|json_script:"slots-url" }}{{ config.currency_label|json_script:"currency-label" }}
 {% endblock %}
 {% block scripts %}<script src="{% static 'monicka_booking/booking.js' %}" defer></script>{% endblock %}
